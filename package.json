@@ -3,14 +3,18 @@
   "version": "0.1.0",
   "description": "",
   "config": {
-    "port": "9000"
+    "port": "9002"
   },
   "scripts": {
     "test": "echo \"Warning: no test specified\" && exit 0",
     "clean": "rm -rf dist",
-    "mkdirs": "mkdir -p dist",
-    "build": "browserify src/index.js -g babelify | uglifyjs -c -o dist/index.js",
-    "watch": "watchify --debug src/index.js -o dist/index.js -g babelify",
+    "mkdirs": "mkdir -p dist dist/js",
+    "preprocess": "preprocess --src-dir src src/index.html -o dist/index.html",
+    "copy": "npm run mkdirs && npm run preprocess",
+    "build": "npm run copy && browserify src/js/index.js -g babelify | uglifyjs -c -o dist/js/index.js",
+    "watch": "npm run watch:files & npm run watch:js",
+    "watch:js": "watchify --debug src/js/index.js -o dist/js/index.js -g babelify",
+    "watch:files": "npm run copy && onchange 'src/shaders/**' -- npm run preprocess",
     "serve": "http-server -s -p $npm_package_config_port",
     "dev": "npm run serve & npm run watch",
     "lint": "eslint src",
@@ -46,5 +50,9 @@
         }
       ]
     ]
+  },
+  "dependencies": {
+    "core-js": "2.4.1",
+    "gl-matrix": "2.3.2"
   }
 }

@@ -7,6 +7,12 @@
     <canvas id="glcanvas" width="640" height="480">
       Your browser doesn't appear to support the <code>&lt;canvas&gt;</code> element.
     </canvas>
-    <script src="/dist/index.js"></script>
+    <script id="vertex-shader" type="x-shader/x-vertex">
+      <!-- @include ./shaders/shader.vert -->
+    </script>
+    <script id="fragment-shader" type="x-shader/x-fragment">
+      <!-- @include ./shaders/shader.frag -->
+    </script>
+    <script src="/dist/js/index.js"></script>
   </body>
 </html>
