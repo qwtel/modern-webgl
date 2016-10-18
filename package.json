@@ -14,7 +14,7 @@
     "build": "npm run copy && browserify src/js/index.js -g babelify | uglifyjs -c -o dist/js/index.js",
     "watch": "npm run watch:files & npm run watch:js",
     "watch:js": "watchify --debug src/js/index.js -o dist/js/index.js -g babelify",
-    "watch:files": "npm run copy && onchange 'src/shaders/**' -- npm run preprocess",
+    "watch:files": "npm run copy && onchange 'shaders/**' -- npm run preprocess",
     "serve": "http-server -s -p $npm_package_config_port",
     "dev": "npm run serve & npm run watch",
     "lint": "eslint src",

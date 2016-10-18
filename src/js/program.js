@@ -1,14 +1,13 @@
-const object = Symbol('object');
+import Holder from './holder';
 
-export default class Program {
+export default class Program extends Holder {
   constructor(gl, shaders)  {
     if (!gl) throw Error('No GL context provided');
     if (!shaders || shaders.length === 0) {
       throw Error('No shaders were provided to create the program');
     }
 
-    this.gl = gl;
-    this[object] = gl.createProgram();
+    super(gl, gl.createProgram());
 
     for (const shader of shaders) {
       gl.attachShader(this.object, shader.object);
@@ -25,8 +24,12 @@ export default class Program {
     }
   }
 
-  get object() {
-    return this[object];
+  use() {
+    this.gl.useProgram(this.object);
+  }
+
+  stopUsing() {
+    this.gl.useProgram(null);
   }
 
   attrib(attribName) {

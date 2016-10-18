@@ -1,8 +1,11 @@
 import 'core-js';
+
 import { vec3, mat4 } from 'gl-matrix';
 
+import { sizeof } from './common';
 import Shader from './shader';
 import Program from './program';
+import Texture from './texture';
 
 function getContext(canvas) {
   return canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
@@ -16,48 +19,78 @@ function loadShaders(gl) {
   return new Program(gl, shaders);
 }
 
+function loadTexture(gl) {
+  const image = document.getElementById('texture');
+  //image.flipVertically();
+  return new Texture(gl, image);
+}
+
 function loadTriangle(gl, program) {
-  const triangleVertexPositionBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPositionBuffer);
+  const buff = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buff);
 
   const vertices = [
-     0.0,  0.8,  0.0,
-    -0.8, -0.8,  0.0,
-     0.8, -0.8,  0.0,
+     0.0, 0.8, 0.0,   0.5, 1.0,
+    -0.8,-0.8, 0.0,   0.0, 0.0,
+     0.8,-0.8, 0.0,   1.0, 0.0,
   ];
-
-  gl.enableVertexAttribArray(program.attrib('vert'));
-  gl.vertexAttribPointer(program.attrib('vert'), 3, gl.FLOAT, false, 0, 0);
 
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
 
-  // glBindBuffer(GL_ARRAY_BUFFER, 0);
-  // glBindVertexArray(0);
+  gl.enableVertexAttribArray(program.attrib('vert'));
+  gl.vertexAttribPointer(
+    program.attrib('vert'),
+    3,
+    gl.FLOAT,
+    false,
+    5 * sizeof(gl, gl.FLOAT),
+    null
+  );
 
-  return triangleVertexPositionBuffer;
+  gl.enableVertexAttribArray(program.attrib('vertTexCoord'));
+  gl.vertexAttribPointer(
+    program.attrib('vertTexCoord'),
+    2,
+    gl.FLOAT,
+    true,
+    5 * sizeof(gl, gl.FLOAT),
+    3 * sizeof(gl, gl.FLOAT)
+  );
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+  return buff;
 }
 
-function render(gl, program, buff) {
-  // gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
-
+function render(gl, program, texture, buff) {
   // // clear everything
   gl.clearColor(0, 0, 0, 1); // black
   gl.clear(gl.COLOR_BUFFER_BIT/* | gl.DEPTH_BUFFER_BIT*/);
 
   // // bind the program (the shaders)
-  gl.useProgram(program.object);
+  program.use();
 
-  // // bind the VAO (the triangle)
+  // bind the texture and set the "tex" uniform in the fragment shader
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, texture.object);
+  gl.uniform1i(program.uniform('tex'), 0); // set to 0 because the texture is bound to GL_TEXTURE0
+
+  // // bind
   gl.bindBuffer(gl.ARRAY_BUFFER, buff);
 
   // // draw the VAO
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 
+  // unbind the program, the buffer and the texture
+  program.stopUsing();
+  gl.bindBuffer(gl.ARRAY_BUFFER, null);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+
   // requestAnimationFrame(render.bind(null, gl, program, buff));
 }
 
 function start() {
-  const canvas = document.getElementById('glcanvas');
+  const canvas = document.getElementById('canvas');
 
   const gl = window.gl = getContext(canvas);
 
@@ -67,9 +100,11 @@ function start() {
   }
 
   const program = loadShaders(gl);
-  const buff = loadTriangle(gl, program);
+  const texture = loadTexture(gl);
+  const buffer = loadTriangle(gl, program);
 
-  render(gl, program, buff);
+  // gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+  render(gl, program, texture, buffer);
 }
 
 window.addEventListener('load', start);

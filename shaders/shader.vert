@@ -9,7 +9,11 @@
 // varying float v_Dot;
 // varying vec2 v_texCoord;
 
+
 attribute vec3 vert;
+attribute vec2 vertTexCoord;
+
+varying vec2 fragTexCoord;
 
 void main()
 {
@@ -17,5 +21,7 @@ void main()
   // v_texCoord = vTexCoord.st;
   // vec4 transNormal = u_normalMatrix * vec4(vNormal, 1);
   // v_Dot = max(dot(transNormal.xyz, lightDir), 0.0);
+
+  fragTexCoord = vertTexCoord;
   gl_Position = vec4(vert, 1);
 }
