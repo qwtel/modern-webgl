@@ -9,6 +9,9 @@
 // varying float v_Dot;
 // varying vec2 v_texCoord;
 
+uniform mat4 projection;
+uniform mat4 camera;
+uniform mat4 model;
 
 attribute vec3 vert;
 attribute vec2 vertTexCoord;
@@ -22,6 +25,9 @@ void main()
   // vec4 transNormal = u_normalMatrix * vec4(vNormal, 1);
   // v_Dot = max(dot(transNormal.xyz, lightDir), 0.0);
 
+  // Pass the tex coord straight through to the fragment shader
   fragTexCoord = vertTexCoord;
-  gl_Position = vec4(vert, 1);
+
+  // Apply all matrix transformations to vert
+  gl_Position = projection * camera * model * vec4(vert, 1);
 }
