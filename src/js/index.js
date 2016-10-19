@@ -3,7 +3,7 @@ import 'core-js';
 import GLMAT from 'gl-matrix';
 import glm, { vec3, mat4 } from 'glm-js';
 
-import { sizeof } from './common';
+import { sizeof, e2c } from './common';
 import Shader from './shader';
 import Program from './program';
 import Texture from './texture';
@@ -223,11 +223,11 @@ function start() {
   }
 
   document.addEventListener('keydown', (e) => {
-    currentlyPressedKeys.set(e.code, true);
+    currentlyPressedKeys.set(e2c(e), true);
   }, { passive: true });
 
   document.addEventListener('keyup', (e) => {
-    currentlyPressedKeys.set(e.code, false);
+    currentlyPressedKeys.set(e2c(e), false);
   }, { passive: true });
 
   document.addEventListener('mousedown', (e) => {

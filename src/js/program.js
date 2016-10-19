@@ -15,9 +15,9 @@ export default class Program extends Holder {
 
     gl.linkProgram(this.object);
 
-    for (const shader of shaders) {
-      gl.detachShader(this.object, shader.object);
-    }
+    // for (const shader of shaders) {
+    //   gl.detachShader(this.object, shader.object);
+    // }
 
     if (!gl.getProgramParameter(this.object, gl.LINK_STATUS)) {
       throw Error('Could not initialise shaders');
