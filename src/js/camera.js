@@ -67,7 +67,7 @@ export default class Camera {
     const direction = glm.normalize(position.sub(this.position));
     this.verticalAngle = glm.radians(Math.asin(-direction.y));
     this.horizontalAngle = -glm.radians(Math.atan2(-direction.x, -direction.z));
-    normalizeAngles();
+    this.normalizeAngles();
   }
 
   normalizeAngles() {

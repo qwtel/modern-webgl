@@ -19,6 +19,8 @@ const MOUSE_SENSITIVITY = 0.1;
 const ZOOM_SENSITIVITY = -0.2;
 
 global.currentlyPressedKeys = new Map();
+let screenWidth;
+let screenHeight;
 let camera;
 let degreesRotated = 0;
 let lastTime = 0;
@@ -167,19 +169,21 @@ function update(time) {
   //rotate camera based on mouse movement
   if (mouseDown) {
     camera.offsetOrientation(
-      MOUSE_SENSITIVITY * (mouseY - lastMouseY),
-      MOUSE_SENSITIVITY * (mouseX - lastMouseX)
+      MOUSE_SENSITIVITY * (lastMouseY - mouseY),
+      MOUSE_SENSITIVITY * (lastMouseX - mouseX)
     );
     lastMouseX = mouseX;
     lastMouseY = mouseY;
   }
 
   // //increase or decrease field of view based on mouse wheel
-  let fieldOfView = camera.fieldOfView + ZOOM_SENSITIVITY * scrollY;
-  if (fieldOfView < 5) fieldOfView = 5;
-  if (fieldOfView > 130) fieldOfView = 130;
-  camera.fieldOfView = fieldOfView;
-  scrollY = 0;
+  if (scrollY) {
+    let fieldOfView = camera.fieldOfView + ZOOM_SENSITIVITY * scrollY;
+    if (fieldOfView < 5) fieldOfView = 5;
+    if (fieldOfView > 130) fieldOfView = 130;
+    camera.fieldOfView = fieldOfView;
+    scrollY = 0;
+  }
 }
 
 function render() {
@@ -214,6 +218,8 @@ function render() {
 
 function start() {
   const canvas = document.getElementById('canvas');
+  canvas.width = screenWidth = document.body.clientWidth;
+  canvas.height = screenHeight = document.body.clientHeight;
 
   global.gl = getContext(canvas);
 
@@ -246,6 +252,25 @@ function start() {
     mouseY = e.clientY;
   }, { passive: true });
 
+  document.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    mouseDown = true;
+    lastMouseX = mouseX = e.touches[0].clientX;
+    lastMouseY = mouseY = e.touches[0].clientY;
+  });
+
+  document.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    mouseDown = false;
+  });
+
+  document.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (!mouseDown) return;
+    mouseX = e.touches[0].clientX;
+    mouseY = e.touches[0].clientY;
+  });
+
   document.addEventListener('wheel', (e) => {
     e.preventDefault();
     scrollY = e.deltaY;
@@ -261,7 +286,8 @@ function start() {
   buffer = loadCube();
 
   camera = new Camera();
-  camera.position = vec3(0,0,4);
+  camera.position = vec3(0,0,8);
+  camera.viewportAspectRatio = screenWidth / screenHeight;
 
   const loop = (time = 0) => {
     update(time);
