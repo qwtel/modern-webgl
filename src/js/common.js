@@ -1,4 +1,5 @@
-export function sizeof(gl, glType) {
+export function sizeof(glType) {
+  const gl = global.gl;
   switch (glType) {
     case gl.BYTE: return 1;
     case gl.UNSIGNED_BYTE: return 1;

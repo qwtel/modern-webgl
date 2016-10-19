@@ -24,15 +24,13 @@ let screenHeight;
 let camera;
 let degreesRotated = 0;
 let lastTime = 0;
-let program;
-let texture;
-let buffer;
 let mouseDown = false;
 let mouseX = 0;
 let mouseY = 0;
 let lastMouseX = 0;
 let lastMouseY = 0;
 let scrollY = 0;
+let instances;
 
 // glm.lookAt returns a quat for no reason
 function lookAt(eye, target, up) {
@@ -42,14 +40,24 @@ function lookAt(eye, target, up) {
   ));
 }
 
+// convenience function that returns a translation matrix
+function translate(x, y, z) {
+  return glm.translate(mat4(), vec3(x,y,z));
+}
+
+// convenience function that returns a scaling matrix
+function scale(x, y, z) {
+  return glm.scale(mat4(), vec3(x,y,z));
+}
+
 function getContext(canvas) {
   return canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
 }
 
-function loadShaders() {
+function loadShaders(vid, fid) {
   const shaders = [
-    new Shader(gl, document.getElementById('vertex-shader').textContent, gl.VERTEX_SHADER),
-    new Shader(gl, document.getElementById('fragment-shader').textContent, gl.FRAGMENT_SHADER),
+    new Shader(gl, document.getElementById(vid).textContent, gl.VERTEX_SHADER),
+    new Shader(gl, document.getElementById(fid).textContent, gl.FRAGMENT_SHADER),
   ];
   return new Program(gl, shaders);
 }
@@ -60,9 +68,21 @@ function loadTexture() {
   return new Texture(gl, image);
 }
 
-function loadCube() {
-  const buffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+function loadWoodenCrateAsset() {
+  const asset = {
+    program: loadShaders('vertex-shader', 'fragment-shader'),
+    texture: loadTexture(gl, 'texture'),
+    buffer: gl.createBuffer(),
+    attribs: new Map([
+      ['vert', [3, gl.FLOAT, false, 5 * sizeof(gl.FLOAT), 0]],
+      ['vertTexCoord', [2, gl.FLOAT, true, 5 * sizeof(gl.FLOAT), 3 * sizeof(gl.FLOAT)]],
+    ]),
+    drawType: gl.TRIANGLES,
+    drawStart: 0,
+    drawCount: 6*2*3,
+  };
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, asset.buffer);
 
   const vertices = [
   // X     Y     Z      U    V
@@ -111,29 +131,38 @@ function loadCube() {
 
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
 
-  gl.enableVertexAttribArray(program.attrib('vert'));
-  gl.vertexAttribPointer(
-    program.attrib('vert'),
-    3,
-    gl.FLOAT,
-    false,
-    5 * sizeof(gl, gl.FLOAT),
-    null
-  );
-
-  gl.enableVertexAttribArray(program.attrib('vertTexCoord'));
-  gl.vertexAttribPointer(
-    program.attrib('vertTexCoord'),
-    2,
-    gl.FLOAT,
-    true,
-    5 * sizeof(gl, gl.FLOAT),
-    3 * sizeof(gl, gl.FLOAT)
-  );
-
   gl.bindBuffer(gl.ARRAY_BUFFER, null);
 
-  return buffer;
+  return asset;
+}
+
+function createInstances(woodenCrate) {
+  return [
+    {
+      asset: woodenCrate,
+      transform: mat4(),
+    },
+    // ModelInstance i;
+    {
+      asset: woodenCrate,
+      transform: translate(0,-4,0).mul(scale(1,2,1)),
+    },
+    // ModelInstance hLeft;
+    {
+      asset: woodenCrate,
+      transform: translate(-8,0,0).mul(scale(1,6,1)),
+    },
+    // ModelInstance hRight;
+    {
+      asset: woodenCrate,
+      transform: translate(-4,0,0).mul(scale(1,6,1)),
+    },
+    // ModelInstance hMid;
+    {
+      asset: woodenCrate,
+      transform: translate(-6,0,0).mul(scale(2,1,0.8)),
+    }
+  ];
 }
 
 function update(time) {
@@ -142,6 +171,7 @@ function update(time) {
 
   degreesRotated += diff * DEG_PER_SECOND;
   while (degreesRotated > 360) degreesRotated -= 360;
+  instances[0].transform = glm.rotate(mat4(), glm.radians(degreesRotated), vec3(0,1,0));
 
   if (currentlyPressedKeys.get('KeyS')) {
     camera.offsetPosition(camera.forward.mul(-diff * MOVE_SPEED));
@@ -186,48 +216,47 @@ function update(time) {
   }
 }
 
+function renderInstance(inst) {
+  const { asset, transform } = inst;
+  const { program, texture, buffer, attribs } = asset;
+
+  // bind the shaders
+  program.use();
+
+  // set the shader uniforms
+  program.setUniform('camera', camera.matrix);
+  program.setUniform('model', transform);
+  program.setUniform('tex', 0); //set to 0 because the texture will be bound to GL_TEXTURE0
+
+  // bind the texture
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, texture.object);
+
+  // bind "VAO" and draw
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  for (const [name, args] of attribs) {
+    gl.enableVertexAttribArray(program.attrib(name));
+    gl.vertexAttribPointer(program.attrib(name), ...args);
+  }
+  gl.drawArrays(asset.drawType, asset.drawStart, asset.drawCount);
+
+  //unbind everything
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  gl.bindBuffer(gl.ARRAY_BUFFER, null)
+  program.stopUsing();
+}
+
 function render() {
   // clear everything
   gl.clearColor(0, 0, 0, 1); // black
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-  // // bind the program (the shaders)
-  program.use();
-
-  // set the "camera" uniform
-  gl.uniformMatrix4fv(program.uniform('camera'), false, camera.matrix.elements);
-
-  // set the "model" uniform in the vertex shader, based on the degreesRotated global
-  const model = glm.rotate(mat4(), glm.radians(degreesRotated), vec3(0,1,0));
-  gl.uniformMatrix4fv(program.uniform('model'), false, model.elements);
-
-  // bind the texture and set the "tex" uniform in the fragment shader
-  gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, texture.object);
-  gl.uniform1i(program.uniform('tex'), 0); // set to 0 because the texture is bound to GL_TEXTURE0
-
-  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-
-  gl.drawArrays(gl.TRIANGLES, 0, 6*2*3);
-
-  // unbind the program, the buffer and the texture
-  program.stopUsing();
-  gl.bindBuffer(gl.ARRAY_BUFFER, null);
-  gl.bindTexture(gl.TEXTURE_2D, null);
+  for (const instance of instances) {
+    renderInstance(instance);
+  }
 }
 
-function start() {
-  const canvas = document.getElementById('canvas');
-  canvas.width = screenWidth = document.body.clientWidth;
-  canvas.height = screenHeight = document.body.clientHeight;
-
-  global.gl = getContext(canvas);
-
-  if (!gl) {
-    console.error('Unable to initialize WebGL. Your browser may not support it.');
-    return;
-  }
-
+function bindEvents() {
   document.addEventListener('keydown', (e) => {
     currentlyPressedKeys.set(e2c(e), true);
   }, { passive: true });
@@ -275,19 +304,34 @@ function start() {
     e.preventDefault();
     scrollY = e.deltaY;
   });
+}
+
+function start() {
+  const canvas = document.getElementById('canvas');
+
+  canvas.width = screenWidth = document.body.clientWidth;
+  canvas.height = screenHeight = document.body.clientHeight;
+
+  global.gl = getContext(canvas);
+
+  if (!gl) {
+    console.error('Unable to initialize WebGL. Your browser may not support it.');
+    return;
+  }
 
   gl.enable(gl.DEPTH_TEST);
   gl.depthFunc(gl.LESS);
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-  program = loadShaders();
-  texture = loadTexture();
-  buffer = loadCube();
+  const woodenCrate = loadWoodenCrateAsset();
+  instances = createInstances(woodenCrate);
 
   camera = new Camera();
-  camera.position = vec3(0,0,8);
+  camera.position = vec3(-4,0,17);
   camera.viewportAspectRatio = screenWidth / screenHeight;
+
+  bindEvents();
 
   const loop = (time = 0) => {
     update(time);

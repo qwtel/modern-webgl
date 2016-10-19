@@ -1,3 +1,5 @@
+import glm, { vec2, vec3, vec4, mat4 } from 'glm-js';
+
 import Holder from './holder';
 
 export default class Program extends Holder {
@@ -8,6 +10,7 @@ export default class Program extends Holder {
     }
 
     super(gl, gl.createProgram());
+    this.shaders = shaders;
 
     for (const shader of shaders) {
       gl.attachShader(this.object, shader.object);
@@ -15,6 +18,7 @@ export default class Program extends Holder {
 
     gl.linkProgram(this.object);
 
+    // TODO: why detach?
     // for (const shader of shaders) {
     //   gl.detachShader(this.object, shader.object);
     // }
@@ -42,5 +46,21 @@ export default class Program extends Holder {
     const uniform = this.gl.getUniformLocation(this.object, uniformName);
     if (uniform == -1) throw Error(`Program uniform not found: ${uniformName}`);
     return uniform;
+  }
+
+  setUniform(name, value) {
+    if (typeof value === 'number') {
+      if (Number.isInteger(value)) {
+        return this.gl.uniform1i(this.uniform(name), value);
+      } else {
+        return this.gl.uniform1f(this.uniform(name), value);
+      }
+    } else switch (value.constructor) {
+      case vec2: return this.gl.uniform2fv(this.uniform(name), false, value.elements);
+      case vec3: return this.gl.uniform3fv(this.uniform(name), false, value.elements);
+      case vec4: return this.gl.uniform4fv(this.uniform(name), false, value.elements);
+      case mat4: return this.gl.uniformMatrix4fv(this.uniform(name), false, value.elements);
+      default: throw Error('Unrecognized type');
+    }
   }
 }
