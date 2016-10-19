@@ -9,7 +9,6 @@
 // varying float v_Dot;
 // varying vec2 v_texCoord;
 
-uniform mat4 projection;
 uniform mat4 camera;
 uniform mat4 model;
 
@@ -29,5 +28,5 @@ void main()
   fragTexCoord = vertTexCoord;
 
   // Apply all matrix transformations to vert
-  gl_Position = projection * camera * model * vec4(vert, 1);
+  gl_Position = camera * model * vec4(vert, 1);
 }

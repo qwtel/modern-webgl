@@ -1,12 +1,17 @@
-const object = Symbol('object');
+const gls = Symbol('gl');
+const objects = Symbol('object');
 
 export default class Holder {
-  constructor(gl, obj) {
-    this.gl = gl;
-    this[object] = obj;
+  constructor(gl, object) {
+    this[gls] = gl;
+    this[objects] = object;
+  }
+
+  get gl() {
+    return this[gls];
   }
 
   get object() {
-    return this[object];
+    return this[objects];
   }
 }
