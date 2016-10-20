@@ -1,7 +1,7 @@
 import 'core-js';
 
 import GLMAT from 'gl-matrix';
-import glm, { vec3, mat4 } from 'glm-js';
+import glm, { vec3, mat3, mat4 } from 'glm-js';
 
 import { sizeof, e2c } from './common';
 import Shader from './shader';
@@ -14,8 +14,9 @@ global.vec3 = vec3;
 global.mat4 = mat4;
 
 const DEG_PER_SECOND = 180;
-const MOVE_SPEED = 2; //units per second
+const MOVE_SPEED = 4; //units per second
 const MOUSE_SENSITIVITY = 0.1;
+const TOUCH_SENSITIVITY = 1;
 const ZOOM_SENSITIVITY = -0.2;
 
 global.currentlyPressedKeys = new Map();
@@ -29,14 +30,39 @@ let mouseX = 0;
 let mouseY = 0;
 let lastMouseX = 0;
 let lastMouseY = 0;
+let touchDown = false;
+let touchX = 0;
+let touchY = 0;
+let lastTouchX = 0;
+let lastTouchY = 0;
 let scrollY = 0;
 let instances;
+const light = {
+  position: vec3(-4,0,17),
+  intensities: vec3(1,1,1),
+};
 
-// glm.lookAt returns a quat for no reason
+// glm.lookAt returns a quat for some reason
 function lookAt(eye, target, up) {
   return new glm.mat4(GLMAT.mat4.lookAt(
     new Float32Array(16),
     eye.elements, target.elements, up.elements
+  ));
+}
+
+// glm.inverse not implemented for mat3 for some reason
+function inverse(a) {
+  return new glm.mat3(GLMAT.mat3.invert(
+    new Float32Array(9),
+    a.elements
+  ));
+}
+
+// glm.transpose not implemented for mat3 for some reason
+function transpose(a) {
+  return new glm.mat3(GLMAT.mat3.transpose(
+    new Float32Array(9),
+    a.elements
   ));
 }
 
@@ -74,59 +100,64 @@ function loadWoodenCrateAsset() {
     texture: loadTexture(gl, 'texture'),
     buffer: gl.createBuffer(),
     attribs: new Map([
-      ['vert', [3, gl.FLOAT, false, 5 * sizeof(gl.FLOAT), 0]],
-      ['vertTexCoord', [2, gl.FLOAT, true, 5 * sizeof(gl.FLOAT), 3 * sizeof(gl.FLOAT)]],
+      ['vert', [3, gl.FLOAT, false, 8 * sizeof(gl.FLOAT), 0]],
+      ['vertTexCoord', [2, gl.FLOAT, true, 8 * sizeof(gl.FLOAT), 3 * sizeof(gl.FLOAT)]],
+      ['vertNormal', [3, gl.FLOAT, true,  8 * sizeof(gl.FLOAT), 5 * sizeof(gl.FLOAT)]],
     ]),
     drawType: gl.TRIANGLES,
     drawStart: 0,
     drawCount: 6*2*3,
   };
 
+  gl.enableVertexAttribArray(asset.program.attrib('vert'));
+  gl.enableVertexAttribArray(asset.program.attrib('vertTexCoord'));
+  gl.enableVertexAttribArray(asset.program.attrib('vertNormal'));
+
   gl.bindBuffer(gl.ARRAY_BUFFER, asset.buffer);
 
   const vertices = [
-  // X     Y     Z      U    V
-    -1.0, -1.0, -1.0,   0.0, 0.0, // bottom
-     1.0, -1.0, -1.0,   1.0, 0.0,
-    -1.0, -1.0,  1.0,   0.0, 1.0,
-     1.0, -1.0, -1.0,   1.0, 0.0,
-     1.0, -1.0,  1.0,   1.0, 1.0,
-    -1.0, -1.0,  1.0,   0.0, 1.0,
+    // X     Y     Z      U    V        Normal
+    -1.0, -1.0, -1.0,   0.0, 0.0,   0.0, -1.0, 0.0, // bottom
+     1.0, -1.0, -1.0,   1.0, 0.0,   0.0, -1.0, 0.0,
+    -1.0, -1.0,  1.0,   0.0, 1.0,   0.0, -1.0, 0.0,
+     1.0, -1.0, -1.0,   1.0, 0.0,   0.0, -1.0, 0.0,
+     1.0, -1.0,  1.0,   1.0, 1.0,   0.0, -1.0, 0.0,
+    -1.0, -1.0,  1.0,   0.0, 1.0,   0.0, -1.0, 0.0,
 
-    -1.0,  1.0, -1.0,   0.0, 0.0, // top
-    -1.0,  1.0,  1.0,   0.0, 1.0,
-     1.0,  1.0, -1.0,   1.0, 0.0,
-     1.0,  1.0, -1.0,   1.0, 0.0,
-    -1.0,  1.0,  1.0,   0.0, 1.0,
-     1.0,  1.0,  1.0,   1.0, 1.0,
+    -1.0,  1.0, -1.0,   0.0, 0.0,   0.0, 1.0, 0.0, // top
+    -1.0,  1.0,  1.0,   0.0, 1.0,   0.0, 1.0, 0.0,
+     1.0,  1.0, -1.0,   1.0, 0.0,   0.0, 1.0, 0.0,
+     1.0,  1.0, -1.0,   1.0, 0.0,   0.0, 1.0, 0.0,
+    -1.0,  1.0,  1.0,   0.0, 1.0,   0.0, 1.0, 0.0,
+     1.0,  1.0,  1.0,   1.0, 1.0,   0.0, 1.0, 0.0,
 
-    -1.0, -1.0,  1.0,   1.0, 0.0, // front
-     1.0, -1.0,  1.0,   0.0, 0.0,
-    -1.0,  1.0,  1.0,   1.0, 1.0,
-     1.0, -1.0,  1.0,   0.0, 0.0,
-     1.0,  1.0,  1.0,   0.0, 1.0,
-    -1.0,  1.0,  1.0,   1.0, 1.0,
+    -1.0, -1.0,  1.0,   1.0, 0.0,   0.0, 0.0, 1.0, // front
+     1.0, -1.0,  1.0,   0.0, 0.0,   0.0, 0.0, 1.0,
+    -1.0,  1.0,  1.0,   1.0, 1.0,   0.0, 0.0, 1.0,
+     1.0, -1.0,  1.0,   0.0, 0.0,   0.0, 0.0, 1.0,
+     1.0,  1.0,  1.0,   0.0, 1.0,   0.0, 0.0, 1.0,
+    -1.0,  1.0,  1.0,   1.0, 1.0,   0.0, 0.0, 1.0,
 
-    -1.0, -1.0, -1.0,   0.0, 0.0, // back
-    -1.0,  1.0, -1.0,   0.0, 1.0,
-     1.0, -1.0, -1.0,   1.0, 0.0,
-     1.0, -1.0, -1.0,   1.0, 0.0,
-    -1.0,  1.0, -1.0,   0.0, 1.0,
-     1.0,  1.0, -1.0,   1.0, 1.0,
+    -1.0, -1.0, -1.0,   0.0, 0.0,   0.0, 0.0, -1.0, // back
+    -1.0,  1.0, -1.0,   0.0, 1.0,   0.0, 0.0, -1.0,
+     1.0, -1.0, -1.0,   1.0, 0.0,   0.0, 0.0, -1.0,
+     1.0, -1.0, -1.0,   1.0, 0.0,   0.0, 0.0, -1.0,
+    -1.0,  1.0, -1.0,   0.0, 1.0,   0.0, 0.0, -1.0,
+     1.0,  1.0, -1.0,   1.0, 1.0,   0.0, 0.0, -1.0,
 
-    -1.0, -1.0,  1.0,   0.0, 1.0, // left
-    -1.0,  1.0, -1.0,   1.0, 0.0,
-    -1.0, -1.0, -1.0,   0.0, 0.0,
-    -1.0, -1.0,  1.0,   0.0, 1.0,
-    -1.0,  1.0,  1.0,   1.0, 1.0,
-    -1.0,  1.0, -1.0,   1.0, 0.0,
+    -1.0, -1.0,  1.0,   0.0, 1.0,   -1.0, 0.0, 0.0, // left
+    -1.0,  1.0, -1.0,   1.0, 0.0,   -1.0, 0.0, 0.0,
+    -1.0, -1.0, -1.0,   0.0, 0.0,   -1.0, 0.0, 0.0,
+    -1.0, -1.0,  1.0,   0.0, 1.0,   -1.0, 0.0, 0.0,
+    -1.0,  1.0,  1.0,   1.0, 1.0,   -1.0, 0.0, 0.0,
+    -1.0,  1.0, -1.0,   1.0, 0.0,   -1.0, 0.0, 0.0,
 
-     1.0, -1.0,  1.0,   1.0, 1.0, // right
-     1.0, -1.0, -1.0,   1.0, 0.0,
-     1.0,  1.0, -1.0,   0.0, 0.0,
-     1.0, -1.0,  1.0,   1.0, 1.0,
-     1.0,  1.0, -1.0,   0.0, 0.0,
-     1.0,  1.0,  1.0,   0.0, 1.0,
+     1.0, -1.0,  1.0,   1.0, 1.0,   1.0, 0.0, 0.0, // right
+     1.0, -1.0, -1.0,   1.0, 0.0,   1.0, 0.0, 0.0,
+     1.0,  1.0, -1.0,   0.0, 0.0,   1.0, 0.0, 0.0,
+     1.0, -1.0,  1.0,   1.0, 1.0,   1.0, 0.0, 0.0,
+     1.0,  1.0, -1.0,   0.0, 0.0,   1.0, 0.0, 0.0,
+     1.0,  1.0,  1.0,   0.0, 1.0,   1.0, 0.0, 0.0
   ];
 
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
@@ -189,11 +220,27 @@ function update(time) {
 
   if (currentlyPressedKeys.get('KeyZ') ||
      (currentlyPressedKeys.get('Space') && currentlyPressedKeys.get('ShiftLeft'))) {
-    camera.offsetPosition(vec3(0, 1, 0).mul(-diff * MOVE_SPEED));
+    camera.offsetPosition(vec3(0,1,0).mul(-diff * MOVE_SPEED));
   }
   if (currentlyPressedKeys.get('KeyX') ||
      (currentlyPressedKeys.get('Space') && !currentlyPressedKeys.get('ShiftLeft'))) {
-    camera.offsetPosition(vec3(0, 1, 0).mul(diff * MOVE_SPEED));
+    camera.offsetPosition(vec3(0,1,0).mul(diff * MOVE_SPEED));
+  }
+
+  if (currentlyPressedKeys.get('Digit1')) {
+    light.position = camera.position;
+  }
+  if (currentlyPressedKeys.get('Digit2')) {
+    light.intensities = vec3(1,0,0); // red
+  }
+  if (currentlyPressedKeys.get('Digit3')) {
+    light.intensities = vec3(0,1,0); // green
+  }
+  if (currentlyPressedKeys.get('Digit4')) {
+    light.intensities = vec3(0,0,1); // blue
+  }
+  if (currentlyPressedKeys.get('Digit5')) {
+    light.intensities = vec3(1,1,1); // white
   }
 
   //rotate camera based on mouse movement
@@ -204,6 +251,15 @@ function update(time) {
     );
     lastMouseX = mouseX;
     lastMouseY = mouseY;
+  }
+
+  if (touchDown) {
+    camera.rotatePosition(
+      TOUCH_SENSITIVITY * (lastTouchY - touchY),
+      TOUCH_SENSITIVITY * (lastTouchX - touchX)
+    );
+    lastTouchX = touchX;
+    lastTouchY = touchY;
   }
 
   // //increase or decrease field of view based on mouse wheel
@@ -226,7 +282,10 @@ function renderInstance(inst) {
   // set the shader uniforms
   program.setUniform('camera', camera.matrix);
   program.setUniform('model', transform);
+  program.setUniform('normalMatrix', transpose(inverse(mat3(transform))));
   program.setUniform('tex', 0); //set to 0 because the texture will be bound to GL_TEXTURE0
+  program.setUniform('light.position', light.position);
+  program.setUniform('light.intensities', light.intensities);
 
   // bind the texture
   gl.activeTexture(gl.TEXTURE0);
@@ -235,7 +294,6 @@ function renderInstance(inst) {
   // bind "VAO" and draw
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
   for (const [name, args] of attribs) {
-    gl.enableVertexAttribArray(program.attrib(name));
     gl.vertexAttribPointer(program.attrib(name), ...args);
   }
   gl.drawArrays(asset.drawType, asset.drawStart, asset.drawCount);
@@ -249,6 +307,7 @@ function renderInstance(inst) {
 function render() {
   // clear everything
   gl.clearColor(0, 0, 0, 1); // black
+  gl.clearDepth(1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
   for (const instance of instances) {
@@ -283,21 +342,21 @@ function bindEvents() {
 
   document.addEventListener('touchstart', (e) => {
     e.preventDefault();
-    mouseDown = true;
-    lastMouseX = mouseX = e.touches[0].clientX;
-    lastMouseY = mouseY = e.touches[0].clientY;
+    touchDown = true;
+    lastTouchX = touchX = e.touches[0].clientX;
+    lastTouchY = touchY = e.touches[0].clientY;
   });
 
   document.addEventListener('touchend', (e) => {
     e.preventDefault();
-    mouseDown = false;
+    touchDown = false;
   });
 
   document.addEventListener('touchmove', (e) => {
     e.preventDefault();
-    if (!mouseDown) return;
-    mouseX = e.touches[0].clientX;
-    mouseY = e.touches[0].clientY;
+    if (!touchDown) return;
+    touchX = e.touches[0].clientX;
+    touchY = e.touches[0].clientY;
   });
 
   document.addEventListener('wheel', (e) => {
@@ -328,8 +387,9 @@ function start() {
   instances = createInstances(woodenCrate);
 
   camera = new Camera();
-  camera.position = vec3(-4,0,17);
+  camera.position = vec3(-4,0,25);
   camera.viewportAspectRatio = screenWidth / screenHeight;
+  camera.lookAt(vec3(0,0,0));
 
   bindEvents();
 
@@ -337,7 +397,7 @@ function start() {
     update(time);
     render();
     requestAnimationFrame(loop);
-  }
+  };
 
   loop();
 }

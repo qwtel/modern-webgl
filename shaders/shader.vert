@@ -1,31 +1,22 @@
-// uniform mat4 u_modelViewProjMatrix;
-// uniform mat4 u_normalMatrix;
-// uniform vec3 lightDir;
-//
-// attribute vec3 vNormal;
-// attribute vec4 vTexCoord;
-// attribute vec4 vPosition;
-//
-// varying float v_Dot;
-// varying vec2 v_texCoord;
+precision lowp float;
 
 uniform mat4 camera;
 uniform mat4 model;
 
 attribute vec3 vert;
 attribute vec2 vertTexCoord;
+attribute vec3 vertNormal;
 
 varying vec2 fragTexCoord;
+varying vec3 fragNormal;
+varying vec3 fragVert;
 
 void main()
 {
-  // gl_Position = u_modelViewProjMatrix * vPosition;
-  // v_texCoord = vTexCoord.st;
-  // vec4 transNormal = u_normalMatrix * vec4(vNormal, 1);
-  // v_Dot = max(dot(transNormal.xyz, lightDir), 0.0);
-
   // Pass the tex coord straight through to the fragment shader
   fragTexCoord = vertTexCoord;
+  fragNormal = vertNormal;
+  fragVert = vert;
 
   // Apply all matrix transformations to vert
   gl_Position = camera * model * vec4(vert, 1);

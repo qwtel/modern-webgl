@@ -1,3 +1,4 @@
+import GLMAT from 'gl-matrix';
 import glm, { vec3, vec4, mat4 } from 'glm-js';
 
 const MAX_VERTICAL_ANGLE = 85; //must be less than 90 to avoid gimbal lock
@@ -12,7 +13,7 @@ export default class Camera {
     this.horizontalAngle = 0;
     this.verticalAngle = 0;
     this.fieldOfView = 50;
-    this.nearPlane = 0.01;
+    this.nearPlane = 0.5;
     this.farPlane = 100;
     this.viewportAspectRatio = 800/600;
   }
@@ -62,11 +63,18 @@ export default class Camera {
     this.normalizeAngles();
   }
 
+  rotatePosition(upAngle, rightAngle) {
+    const p = vec3();
+    GLMAT.vec3.rotateY(p.elements, this.position.elements, vec3(0,0,0), glm.radians(rightAngle));
+    this.position = vec3(p.elements);
+    this.lookAt(vec3(0,0,0));
+  }
+
   lookAt(position) {
     // if (position.eq(this.position)) throw Error()
     const direction = glm.normalize(position.sub(this.position));
-    this.verticalAngle = glm.radians(Math.asin(-direction.y));
-    this.horizontalAngle = -glm.radians(Math.atan2(-direction.x, -direction.z));
+    this.verticalAngle = glm.degrees(Math.asin(-direction.y));
+    this.horizontalAngle = -glm.degrees(Math.atan2(-direction.x, -direction.z));
     this.normalizeAngles();
   }
 

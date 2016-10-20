@@ -19,6 +19,11 @@ export const KEY_W = 87;
 export const KEY_S = 83;
 export const KEY_X = 88;
 export const KEY_Y = 90;
+export const DIGIT_1 = 49;
+export const DIGIT_2 = 50;
+export const DIGIT_3 = 51;
+export const DIGIT_4 = 52;
+export const DIGIT_5 = 53;
 
 export const e2c = ('code' in new KeyboardEvent(null)) ? (e => e.code) : (e) => {
   switch(e.keyCode) {
@@ -30,6 +35,11 @@ export const e2c = ('code' in new KeyboardEvent(null)) ? (e => e.code) : (e) => 
     case KEY_S: return 'KeyS';
     case KEY_X: return 'KeyX';
     case KEY_Y: return 'KeyY';
+    case DIGIT_1: return 'Digit1';
+    case DIGIT_2: return 'Digit2';
+    case DIGIT_3: return 'Digit3';
+    case DIGIT_4: return 'Digit4';
+    case DIGIT_5: return 'Digit5';
     default: return null;
   }
 };

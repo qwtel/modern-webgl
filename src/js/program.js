@@ -1,4 +1,4 @@
-import glm, { vec2, vec3, vec4, mat4 } from 'glm-js';
+import glm, { vec2, vec3, vec4, mat3, mat4 } from 'glm-js';
 
 import Holder from './holder';
 
@@ -24,7 +24,7 @@ export default class Program extends Holder {
     // }
 
     if (!gl.getProgramParameter(this.object, gl.LINK_STATUS)) {
-      throw Error('Could not initialise shaders');
+      throw Error(gl.getProgramInfoLog(this.object));
     }
   }
 
@@ -50,15 +50,17 @@ export default class Program extends Holder {
 
   setUniform(name, value) {
     if (typeof value === 'number') {
+      // TODO: this is error prone...
       if (Number.isInteger(value)) {
         return this.gl.uniform1i(this.uniform(name), value);
       } else {
         return this.gl.uniform1f(this.uniform(name), value);
       }
     } else switch (value.constructor) {
-      case vec2: return this.gl.uniform2fv(this.uniform(name), false, value.elements);
-      case vec3: return this.gl.uniform3fv(this.uniform(name), false, value.elements);
-      case vec4: return this.gl.uniform4fv(this.uniform(name), false, value.elements);
+      case vec2: return this.gl.uniform2fv(this.uniform(name), value.elements);
+      case vec3: return this.gl.uniform3fv(this.uniform(name), value.elements);
+      case vec4: return this.gl.uniform4fv(this.uniform(name), value.elements);
+      case mat3: return this.gl.uniformMatrix3fv(this.uniform(name), false, value.elements);
       case mat4: return this.gl.uniformMatrix4fv(this.uniform(name), false, value.elements);
       default: throw Error('Unrecognized type');
     }
