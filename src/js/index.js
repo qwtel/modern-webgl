@@ -9,9 +9,9 @@ import Program from './program';
 import Texture from './texture';
 import Camera from './camera';
 
-global.glm = glm;
-global.vec3 = vec3;
-global.mat4 = mat4;
+// global.glm = glm;
+// global.vec3 = vec3;
+// global.mat4 = mat4;
 
 const DEG_PER_SECOND = 180;
 const MOVE_SPEED = 4; //units per second
@@ -38,8 +38,10 @@ let lastTouchY = 0;
 let scrollY = 0;
 let instances;
 const light = {
-  position: vec3(-4,0,17),
+  position: vec3(-4,0,4),
   intensities: vec3(1,1,1),
+  attenuation: 0.2,
+  ambientCoefficient: 0.01,
 };
 
 // glm.lookAt returns a quat for some reason
@@ -97,7 +99,11 @@ function loadTexture() {
 function loadWoodenCrateAsset() {
   const asset = {
     program: loadShaders('vertex-shader', 'fragment-shader'),
-    texture: loadTexture(gl, 'texture'),
+    material: {
+      tex: loadTexture(gl, 'texture'),
+      shininess: 80,
+      specularColor: vec3(1,1,1),
+    },
     buffer: gl.createBuffer(),
     attribs: new Map([
       ['vert', [3, gl.FLOAT, false, 8 * sizeof(gl.FLOAT), 0]],
@@ -274,22 +280,27 @@ function update(time) {
 
 function renderInstance(inst) {
   const { asset, transform } = inst;
-  const { program, texture, buffer, attribs } = asset;
+  const { program, material, buffer, attribs } = asset;
 
   // bind the shaders
   program.use();
 
   // set the shader uniforms
   program.setUniform('camera', camera.matrix);
+  program.setUniform('cameraPosition', camera.position);
   program.setUniform('model', transform);
   program.setUniform('normalMatrix', transpose(inverse(mat3(transform))));
-  program.setUniform('tex', 0); //set to 0 because the texture will be bound to GL_TEXTURE0
+  program.setUniform('material.tex', 0); //set to 0 because the texture will be bound to GL_TEXTURE0
+  program.setUniform('material.shininess', material.shininess + 0.000000001); // FIXME
+  program.setUniform('material.specularColor', material.specularColor);
   program.setUniform('light.position', light.position);
   program.setUniform('light.intensities', light.intensities);
+  program.setUniform('light.attenuation', light.attenuation + 0.000000001); // FIXME
+  program.setUniform('light.ambientCoefficient', light.ambientCoefficient + 0.000000001); // FIXME
 
   // bind the texture
   gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, texture.object);
+  gl.bindTexture(gl.TEXTURE_2D, material.tex.object);
 
   // bind "VAO" and draw
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
