@@ -2,6 +2,8 @@
   <head>
     <meta charset="utf-8"></meta>
     <meta name="viewport" content="width=device-width, initial-scale=1"></meta>
+    <script src="https://cdn.rawgit.com/hammerjs/touchemulator/master/touch-emulator.js"></script>
+    <script> TouchEmulator(); </script>
   </head>
   <body>
     <style>
@@ -11,7 +13,14 @@
         position: relative;
         overflow: hidden;
       }
+      #react-canvas-container {
+        width: 100vw;
+        height: 100vh;
+        visibility: hidden;
+        position: absolute;
+      }
     </style>
+    <div id="react-canvas-container"></div>
     <canvas id="canvas" width="640" height="480">
       Your browser doesn't appear to support the <code>&lt;canvas&gt;</code> element.
     </canvas>
@@ -21,6 +30,12 @@
     </script>
     <script id="fragment-shader" type="x-shader/x-fragment">
       <!-- @include ../shaders/shader.frag -->
+    </script>
+    <script id="react-vs" type="x-shader/x-vertex">
+      <!-- @include ../shaders/react.vert -->
+    </script>
+    <script id="react-fs" type="x-shader/x-fragment">
+      <!-- @include ../shaders/react.frag -->
     </script>
     <script src="js/index.js"></script>
   </body>

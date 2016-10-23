@@ -14,7 +14,7 @@
     "build": "npm run copy && browserify src/js/index.js -g babelify | uglifyjs -c -o js/index.js",
     "watch": "npm run watch:files & npm run watch:js",
     "watch:js": "watchify --debug src/js/index.js -o js/index.js -g babelify",
-    "watch:files": "npm run copy && onchange 'shaders/**' -- npm run preprocess",
+    "watch:files": "npm run copy && (onchange 'shaders/**' -- npm run preprocess & onchange 'src/index.html' -- npm run preprocess)",
     "serve": "http-server -s -p $npm_package_config_port",
     "dev": "npm run serve & npm run watch",
     "lint": "eslint src",
@@ -25,6 +25,7 @@
   "license": "MIT",
   "devDependencies": {
     "babel-preset-es2015": "6.16.0",
+    "babel-preset-react": "6.16.0",
     "babelify": "7.3.0",
     "browserify": "13.1.0",
     "cash": "0.8.0",
@@ -54,6 +55,10 @@
   "dependencies": {
     "core-js": "2.4.1",
     "gl-matrix": "2.3.2",
-    "glm-js": "0.0.5-a"
+    "glm-js": "0.0.5-a",
+    "hammerjs": "2.0.8",
+    "react": "0.14.8",
+    "react-canvas": "1.2.1",
+    "react-dom": "0.14.8"
   }
 }

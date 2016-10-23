@@ -25,7 +25,9 @@ export const DIGIT_3 = 51;
 export const DIGIT_4 = 52;
 export const DIGIT_5 = 53;
 
-export const e2c = ('code' in new KeyboardEvent(null)) ? (e => e.code) : (e) => {
+export const e2c = ('code' in new KeyboardEvent(null)) ?
+function(e) { return e.code } :
+function(e) {
   switch(e.keyCode) {
     case KEY_SHIFT_LEFT: return 'ShiftLeft';
     case KEY_SPACE: return 'Space';

@@ -2,16 +2,33 @@ import 'core-js';
 
 import GLMAT from 'gl-matrix';
 import glm, { vec3, mat3, mat4 } from 'glm-js';
+import Hammer from 'hammerjs';
 
 import { sizeof, e2c } from './common';
 import Shader from './shader';
 import Program from './program';
 import Texture from './texture';
+import CanvasTexture from './canvas/texture';
 import Camera from './camera';
+
+import React from 'react';
+import ReactDOM from 'react-dom';
+
+import Page from './canvas/page';
 
 // global.glm = glm;
 // global.vec3 = vec3;
 // global.mat4 = mat4;
+
+const manager = new Hammer.Manager(document.getElementById('canvas'));
+// var Pan = new Hammer.Pan();
+// var Rotate = new Hammer.Rotate();
+const pinch = new Hammer.Pinch();
+
+manager.add(pinch);
+
+const canvasContainer = document.getElementById('react-canvas-container');
+ReactDOM.render(<Page />, canvasContainer);
 
 const DEG_PER_SECOND = 180;
 const MOVE_SPEED = 4; //units per second
@@ -37,6 +54,7 @@ let lastTouchX = 0;
 let lastTouchY = 0;
 let scrollY = 0;
 let instances;
+let plane;
 const light = {
   position: vec3(-4,0,4),
   intensities: vec3(1,1,1),
@@ -79,7 +97,8 @@ function scale(x, y, z) {
 }
 
 function getContext(canvas) {
-  return canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+  return canvas.getContext('webgl', { antialias: true }) ||
+    canvas.getContext('experimental-webgl', { antialias: true });
 }
 
 function loadShaders(vid, fid) {
@@ -96,11 +115,45 @@ function loadTexture() {
   return new Texture(gl, image);
 }
 
+function loadPlane(tex) {
+  const asset = {
+    program: loadShaders('react-vs', 'react-fs'),
+    material: { tex },
+    buffer: gl.createBuffer(),
+    attribs: new Map([
+      ['vert', [3, gl.FLOAT, false, 5 * sizeof(gl.FLOAT), 0]],
+      ['vertTexCoord', [2, gl.FLOAT, true, 5 * sizeof(gl.FLOAT), 3 * sizeof(gl.FLOAT)]],
+    ]),
+    drawType: gl.TRIANGLES,
+    drawStart: 0,
+    drawCount: 6,
+  };
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, asset.buffer);
+
+  gl.enableVertexAttribArray(asset.program.attrib('vert'));
+  gl.enableVertexAttribArray(asset.program.attrib('vertTexCoord'));
+
+  const vertices = [
+    -1.0, -1.0,  1.0,   1.0, 0.0,
+     1.0, -1.0,  1.0,   0.0, 0.0,
+    -1.0,  1.0,  1.0,   1.0, 1.0,
+     1.0, -1.0,  1.0,   0.0, 0.0,
+     1.0,  1.0,  1.0,   0.0, 1.0,
+    -1.0,  1.0,  1.0,   1.0, 1.0,
+  ];
+
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, null);
+  return asset;
+}
+
 function loadWoodenCrateAsset() {
   const asset = {
     program: loadShaders('vertex-shader', 'fragment-shader'),
     material: {
-      tex: loadTexture(gl, 'texture'),
+      tex: loadTexture(),
       shininess: 80,
       specularColor: vec3(1,1,1),
     },
@@ -115,11 +168,11 @@ function loadWoodenCrateAsset() {
     drawCount: 6*2*3,
   };
 
+  gl.bindBuffer(gl.ARRAY_BUFFER, asset.buffer);
+
   gl.enableVertexAttribArray(asset.program.attrib('vert'));
   gl.enableVertexAttribArray(asset.program.attrib('vertTexCoord'));
   gl.enableVertexAttribArray(asset.program.attrib('vertNormal'));
-
-  gl.bindBuffer(gl.ARRAY_BUFFER, asset.buffer);
 
   const vertices = [
     // X     Y     Z      U    V        Normal
@@ -198,7 +251,7 @@ function createInstances(woodenCrate) {
     {
       asset: woodenCrate,
       transform: translate(-6,0,0).mul(scale(2,1,0.8)),
-    }
+    },
   ];
 }
 
@@ -278,6 +331,36 @@ function update(time) {
   }
 }
 
+function renderPage(inst) {
+  const { asset, transform } = inst;
+  const { program, material, buffer, attribs } = asset;
+
+  // bind the shaders
+  program.use();
+
+  // set the shader uniforms
+  program.setUniform('camera', camera.matrix);
+  program.setUniform('model', transform);
+  program.setUniform('material.tex', 0); //set to 0 because the texture will be bound to GL_TEXTURE0
+
+  // bind the texture
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, material.tex.object);
+
+  // bind "VAO" and draw
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  for (const [name, args] of attribs) {
+    // gl.enableVertexAttribArray(program.attrib(name));
+    gl.vertexAttribPointer(program.attrib(name), ...args);
+  }
+  gl.drawArrays(asset.drawType, asset.drawStart, asset.drawCount);
+
+  //unbind everything
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  gl.bindBuffer(gl.ARRAY_BUFFER, null)
+  program.stopUsing();
+}
+
 function renderInstance(inst) {
   const { asset, transform } = inst;
   const { program, material, buffer, attribs } = asset;
@@ -324,6 +407,11 @@ function render() {
   for (const instance of instances) {
     renderInstance(instance);
   }
+
+  renderPage({
+    asset: plane,
+    transform: glm.rotate(translate(0,0,0).mul(scale(2,3,2)), Math.PI, vec3(0,0,1)),
+  });
 }
 
 function bindEvents() {
@@ -374,6 +462,14 @@ function bindEvents() {
     e.preventDefault();
     scrollY = e.deltaY;
   });
+
+  const currentScale = 1;
+  function getRelativeScale(scale) {
+    return scale - currentScale;
+  }
+  manager.on('pinchmove', (e) => {
+    scrollY = 2 * getRelativeScale(e.scale);
+  });
 }
 
 function start() {
@@ -383,6 +479,9 @@ function start() {
   canvas.height = screenHeight = document.body.clientHeight;
 
   global.gl = getContext(canvas);
+
+  const tex = new CanvasTexture(gl, canvasContainer.querySelector('canvas'));
+  plane = loadPlane(tex);
 
   if (!gl) {
     console.error('Unable to initialize WebGL. Your browser may not support it.');
@@ -398,7 +497,7 @@ function start() {
   instances = createInstances(woodenCrate);
 
   camera = new Camera();
-  camera.position = vec3(-4,0,25);
+  camera.position = vec3(0,0,10);
   camera.viewportAspectRatio = screenWidth / screenHeight;
   camera.lookAt(vec3(0,0,0));
 
@@ -413,4 +512,5 @@ function start() {
   loop();
 }
 
-global.addEventListener('load', start);
+setTimeout(start, 2000);
+// global.addEventListener('load', start);
