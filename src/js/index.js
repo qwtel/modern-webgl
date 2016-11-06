@@ -1,4 +1,5 @@
 import 'core-js';
+import 'webvr-polyfill';
 
 import GLMAT from 'gl-matrix';
 import glm, { vec3, mat3, mat4 } from 'glm-js';
@@ -13,6 +14,16 @@ import Camera from './camera';
 // global.vec3 = vec3;
 // global.mat4 = mat4;
 
+let vrDisplay = null;
+let frameData = null;
+
+Object.assign(window.WebVRConfig, {
+  DIRTY_SUBMIT_FRAME_BINDINGS: true,
+  BUFFER_SCALE: 0.75,
+});
+
+global.InitializeWebVRPolyfill();
+
 const DEG_PER_SECOND = 180;
 const MOVE_SPEED = 4; //units per second
 const MOUSE_SENSITIVITY = 0.1;
@@ -20,8 +31,7 @@ const TOUCH_SENSITIVITY = 1;
 const ZOOM_SENSITIVITY = -0.2;
 
 global.currentlyPressedKeys = new Map();
-let screenWidth;
-let screenHeight;
+let canvas;
 let camera;
 let degreesRotated = 0;
 let lastTime = 0;
@@ -38,7 +48,7 @@ let lastTouchY = 0;
 let scrollY = 0;
 let instances;
 const light = {
-  position: vec3(-4,0,4),
+  position: vec3(4, 4, -25).add(vec3(-4,0,4)),
   intensities: vec3(1,1,1),
   attenuation: 0.2,
   ambientCoefficient: 0.01,
@@ -78,8 +88,8 @@ function scale(x, y, z) {
   return glm.scale(mat4(), vec3(x,y,z));
 }
 
-function getContext(canvas) {
-  return canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+function getContext(canvas, config = {}) {
+  return canvas.getContext('webgl', config) || canvas.getContext('experimental-webgl', config);
 }
 
 function loadShaders(vid, fid) {
@@ -177,28 +187,33 @@ function createInstances(woodenCrate) {
   return [
     {
       asset: woodenCrate,
-      transform: mat4(),
+      transform: translate(4,4,-25),
     },
     // ModelInstance i;
     {
       asset: woodenCrate,
-      transform: translate(0,-4,0).mul(scale(1,2,1)),
+      transform: translate(4,0,-25).mul(scale(1,2,1)),
     },
     // ModelInstance hLeft;
     {
       asset: woodenCrate,
-      transform: translate(-8,0,0).mul(scale(1,6,1)),
+      transform: translate(-4,4,-25).mul(scale(1,6,1)),
     },
     // ModelInstance hRight;
     {
       asset: woodenCrate,
-      transform: translate(-4,0,0).mul(scale(1,6,1)),
+      transform: translate(0,4,-25).mul(scale(1,6,1)),
     },
     // ModelInstance hMid;
     {
       asset: woodenCrate,
-      transform: translate(-6,0,0).mul(scale(2,1,0.8)),
-    }
+      transform: translate(-2,4,-25).mul(scale(2,1,0.8)),
+    },
+    // floor
+    {
+      asset: woodenCrate,
+      transform: translate(0,-4,0).mul(scale(50,1,50)),
+    },
   ];
 }
 
@@ -208,7 +223,7 @@ function update(time) {
 
   degreesRotated += diff * DEG_PER_SECOND;
   while (degreesRotated > 360) degreesRotated -= 360;
-  instances[0].transform = glm.rotate(mat4(), glm.radians(degreesRotated), vec3(0,1,0));
+  instances[0].transform = glm.rotate(translate(4,4,-25), glm.radians(degreesRotated), vec3(0,1,0));
 
   if (currentlyPressedKeys.get('KeyS')) {
     camera.offsetPosition(camera.forward.mul(-diff * MOVE_SPEED));
@@ -278,7 +293,7 @@ function update(time) {
   }
 }
 
-function renderInstance(inst) {
+function renderInstance(projection, view, inst) {
   const { asset, transform } = inst;
   const { program, material, buffer, attribs } = asset;
 
@@ -286,7 +301,8 @@ function renderInstance(inst) {
   program.use();
 
   // set the shader uniforms
-  program.setUniform('camera', camera.matrix);
+
+  program.setUniform('camera', mat4(projection).mul(mat4(view)));
   program.setUniform('cameraPosition', camera.position);
   program.setUniform('model', transform);
   program.setUniform('normalMatrix', transpose(inverse(mat3(transform))));
@@ -315,14 +331,9 @@ function renderInstance(inst) {
   program.stopUsing();
 }
 
-function render() {
-  // clear everything
-  gl.clearColor(0, 0, 0, 1); // black
-  gl.clearDepth(1);
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
+function render(projection, view) {
   for (const instance of instances) {
-    renderInstance(instance);
+    renderInstance(projection, view, instance);
   }
 }
 
@@ -376,13 +387,45 @@ function bindEvents() {
   });
 }
 
-function start() {
-  const canvas = document.getElementById('canvas');
+// function startLoop() {
+//   const loop = (time = 0) => {
+//     update(time);
+//     render();
+//     requestAnimationFrame(loop);
+//   };
+//
+//   loop();
+// }
 
-  canvas.width = screenWidth = document.body.clientWidth;
-  canvas.height = screenHeight = document.body.clientHeight;
+function onResize () {
+  if (vrDisplay && vrDisplay.isPresenting) {
+    // If we're presenting we want to use the drawing buffer size
+    // recommended by the VRDevice, since that will ensure the best
+    // results post-distortion.
+    const leftEye = vrDisplay.getEyeParameters('left');
+    const rightEye = vrDisplay.getEyeParameters('right');
+    // For simplicity we're going to render both eyes at the same size,
+    // even if one eye needs less resolution. You can render each eye at
+    // the exact size it needs, but you'll need to adjust the viewports to
+    // account for that.
+    canvas.width = Math.max(leftEye.renderWidth, rightEye.renderWidth) * 2;
+    canvas.height = Math.max(leftEye.renderHeight, rightEye.renderHeight);
+  } else {
+    // We only want to change the size of the canvas drawing buffer to
+    // match the window dimensions when we're not presenting.
+    canvas.width = canvas.offsetWidth * window.devicePixelRatio;
+    canvas.height = canvas.offsetHeight * window.devicePixelRatio;
+  }
+  camera.viewportAspectRatio = canvas.width / canvas.height;
+}
 
-  global.gl = getContext(canvas);
+function initGL() {
+  canvas = document.getElementById('canvas');
+
+  canvas.width = document.body.clientWidth;
+  canvas.height = document.body.clientHeight;
+
+  global.gl = getContext(canvas, { antialias: true });
 
   if (!gl) {
     console.error('Unable to initialize WebGL. Your browser may not support it.');
@@ -398,19 +441,127 @@ function start() {
   instances = createInstances(woodenCrate);
 
   camera = new Camera();
-  camera.position = vec3(-4,0,25);
-  camera.viewportAspectRatio = screenWidth / screenHeight;
-  camera.lookAt(vec3(0,0,0));
+  camera.position = vec3(0,0,0);
+  camera.viewportAspectRatio = canvas.width / canvas.height;
+  // camera.lookAt(vec3(4,0,-25));
 
-  bindEvents();
-
-  const loop = (time = 0) => {
-    update(time);
-    render();
-    requestAnimationFrame(loop);
-  };
-
-  loop();
+  // bindEvents();
+  window.requestAnimationFrame(onAnimationFrame);
 }
 
-global.addEventListener('load', start);
+function onVRRequestPresent () {
+  document.getElementById('vr-btn').style.display = 'none';
+
+  // This can only be called in response to a user gesture.
+  vrDisplay.requestPresent([{ source: canvas }])
+    .catch(e => console.error('requestPresent failed', e));
+}
+
+function onVRExitPresent () {
+  // No sense in exiting presentation if we're not actually presenting.
+  // (This may happen if we get an event like vrdisplaydeactivate when
+  // we weren't presenting.)
+  if (!vrDisplay.isPresenting)
+    return;
+
+  document.getElementById('vr-btn').style.display = '';
+
+  vrDisplay.exitPresent()
+    .catch(e => console.error('exitPresent failed', e));
+}
+
+function onVRPresentChange () {
+  // When we begin or end presenting, the canvas should be resized to the
+  // recommended dimensions for the display.
+  onResize();
+}
+
+function initVR(displays) {
+  if (displays.length > 0) {
+    vrDisplay = displays[0];
+
+    window.addEventListener('resize', onResize);
+    onResize();
+
+    // It's heighly reccommended that you set the near and far planes to
+    // something appropriate for your scene so the projection matricies
+    // WebVR produces have a well scaled depth buffer.
+    vrDisplay.depthNear = 0.1;
+    vrDisplay.depthFar = 100.0;
+
+    // Generally, you want to wait until VR support is confirmed and
+    // you know the user has a VRDisplay capable of presenting connected
+    // before adding UI that advertises VR features.
+    if (vrDisplay.capabilities.canPresent) {
+      document.getElementById('vr-btn').addEventListener('click', onVRRequestPresent);
+    }
+
+    // The UA may kick us out of VR present mode for any reason, so to
+    // ensure we always know when we begin/end presenting we need to
+    // listen for vrdisplaypresentchange events.
+    window.addEventListener('vrdisplaypresentchange', onVRPresentChange, false);
+
+    // it would be appropariate to enter or exit VR presentation mode, such
+    // as the user putting on a headset and triggering a proximity sensor.
+    // You can inspect the `reason` property of the event to learn why the
+    // event was fired, but in this case we're going to always trust the
+    // event and enter or exit VR presentation mode when asked.
+    window.addEventListener('vrdisplayactivate', onVRRequestPresent, false);
+    window.addEventListener('vrdisplaydeactivate', onVRExitPresent, false);
+  } else {
+    console.error('WebVR supported, but no VRDisplays found.');
+  }
+}
+
+function onAnimationFrame(t) {
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.clearColor(0, 0, 0, 1); // black
+  gl.clearDepth(1);
+
+  update(t);
+
+  if (vrDisplay) {
+    // When presenting content to the VRDisplay we want to update at its
+    // refresh rate if it differs from the refresh rate of the main
+    // display. Calling VRDisplay.requestAnimationFrame ensures we render
+    // at the right speed for VR.
+    vrDisplay.requestAnimationFrame(onAnimationFrame);
+
+    // As a general rule you want to get the pose as late as possible
+    // and call VRDisplay.submitFrame as early as possible after
+    // retrieving the pose. Do any work for the frame that doesn't need
+    // to know the pose earlier to ensure the lowest latency possible.
+    //var pose = vrDisplay.getPose();
+    vrDisplay.getFrameData(frameData);
+
+    if (vrDisplay.isPresenting) {
+      // When presenting render a stereo view.
+      gl.viewport(0, 0, canvas.width * 0.5, canvas.height);
+      render(frameData.leftProjectionMatrix, frameData.leftViewMatrix);
+
+      gl.viewport(canvas.width * 0.5, 0, canvas.width * 0.5, canvas.height);
+      render(frameData.rightProjectionMatrix, frameData.rightViewMatrix);
+
+      // If we're currently presenting to the VRDisplay we need to
+      // explicitly indicate we're done rendering.
+      vrDisplay.submitFrame();
+    } else {
+      // When not presenting render a mono view that still takes pose into
+      // account.
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      // It's best to use our own projection matrix in this case, but we can use the left eye's view matrix
+      render(camera.projection, frameData.leftViewMatrix);
+    }
+  } else {
+    window.requestAnimationFrame(onAnimationFrame);
+    // No VRDisplay found.
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    render(camera.projection, camera.view);
+  }
+}
+
+global.addEventListener('load', () => {
+  frameData = new VRFrameData();
+  navigator.getVRDisplays().then(initVR)
+  initGL();
+});

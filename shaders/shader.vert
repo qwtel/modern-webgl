@@ -1,4 +1,4 @@
-precision lowp float;
+precision highp float;
 
 uniform mat4 camera;
 uniform mat4 model;

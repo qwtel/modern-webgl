@@ -13,7 +13,7 @@ export default class Camera {
     this.horizontalAngle = 0;
     this.verticalAngle = 0;
     this.fieldOfView = 50;
-    this.nearPlane = 0.5;
+    this.nearPlane = 0.01;
     this.farPlane = 100;
     this.viewportAspectRatio = 800/600;
   }

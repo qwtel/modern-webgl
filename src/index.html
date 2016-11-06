@@ -11,10 +11,20 @@
         position: relative;
         overflow: hidden;
       }
+      canvas {
+        width: 100vw;
+        height: 100vh;
+      }
+      #vr-btn {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+      }
     </style>
-    <canvas id="canvas" width="640" height="480">
+    <canvas id="canvas">
       Your browser doesn't appear to support the <code>&lt;canvas&gt;</code> element.
     </canvas>
+    <button id="vr-btn">Present in VR</button>
     <img id="texture" src="textures/wooden-crate.jpg" style="display:none" />
     <script id="vertex-shader" type="x-shader/x-vertex">
       <!-- @include ../shaders/shader.vert -->
@@ -22,6 +32,7 @@
     <script id="fragment-shader" type="x-shader/x-fragment">
       <!-- @include ../shaders/shader.frag -->
     </script>
+    <script>window.WebVRConfig = { DEFER_INITIALIZATION: true }</script>
     <script src="js/index.js"></script>
   </body>
 </html>
