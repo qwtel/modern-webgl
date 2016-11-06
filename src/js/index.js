@@ -48,7 +48,7 @@ let lastTouchY = 0;
 let scrollY = 0;
 let instances;
 const light = {
-  position: vec3(4, 4, -25).add(vec3(-4,0,4)),
+  position: vec3(4, 0, -25).add(vec3(-4,0,4)),
   intensities: vec3(1,1,1),
   attenuation: 0.2,
   ambientCoefficient: 0.01,
@@ -187,32 +187,32 @@ function createInstances(woodenCrate) {
   return [
     {
       asset: woodenCrate,
-      transform: translate(4,4,-25),
+      transform: translate(4,0,-25),
     },
     // ModelInstance i;
     {
       asset: woodenCrate,
-      transform: translate(4,0,-25).mul(scale(1,2,1)),
+      transform: translate(4,-4,-25).mul(scale(1,2,1)),
     },
     // ModelInstance hLeft;
     {
       asset: woodenCrate,
-      transform: translate(-4,4,-25).mul(scale(1,6,1)),
+      transform: translate(-4,0,-25).mul(scale(1,6,1)),
     },
     // ModelInstance hRight;
     {
       asset: woodenCrate,
-      transform: translate(0,4,-25).mul(scale(1,6,1)),
+      transform: translate(0,0,-25).mul(scale(1,6,1)),
     },
     // ModelInstance hMid;
     {
       asset: woodenCrate,
-      transform: translate(-2,4,-25).mul(scale(2,1,0.8)),
+      transform: translate(-2,0,-25).mul(scale(2,1,0.8)),
     },
     // floor
     {
       asset: woodenCrate,
-      transform: translate(0,-4,0).mul(scale(50,1,50)),
+      transform: translate(0,-8,0).mul(scale(50,1,50)),
     },
   ];
 }
@@ -223,7 +223,7 @@ function update(time) {
 
   degreesRotated += diff * DEG_PER_SECOND;
   while (degreesRotated > 360) degreesRotated -= 360;
-  instances[0].transform = glm.rotate(translate(4,4,-25), glm.radians(degreesRotated), vec3(0,1,0));
+  instances[0].transform = glm.rotate(translate(4,0,-25), glm.radians(degreesRotated), vec3(0,1,0));
 
   if (currentlyPressedKeys.get('KeyS')) {
     camera.offsetPosition(camera.forward.mul(-diff * MOVE_SPEED));
